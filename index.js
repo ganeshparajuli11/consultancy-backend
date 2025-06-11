@@ -29,9 +29,11 @@ const jitsiRoutes = require('./routes/video/jitsiRoutes');
 
 // Initialize app
 const app = express();
+app.use(cookieParser());
 app.set('trust proxy', 1);
-// Env variables
-const { MONGO_URI, PORT = 3000 } = process.env;
+
+// connect to Atlas
+const { MONGO_URI, PORT } = process.env;
 
 // MongoDB connection
 mongoose.connect(MONGO_URI, {
@@ -45,10 +47,10 @@ mongoose.connect(MONGO_URI, {
 });
 
 // Global middleware (security first)
-app.use(helmet);           // Secure HTTP headers
-app.use(cors);             // CORS policy
-app.use(rateLimiter);      // Throttle requests   // Prevent XSS
-app.use(cookieParser());   // Enable cookie parsing
+app.use(helmet);         
+app.use(cors);            
+app.use(rateLimiter);      
+app.use(cookieParser());   
 
 // Body parser
 app.use(express.json());   // JSON body parser
@@ -57,9 +59,17 @@ app.use(express.json());   // JSON body parser
 app.use(requestLogger);    // Log all incoming requests
 
 // Routes
-app.get('/', (req, res) => {
-  res.send('🚀 meroClass API is live — MongoDB is connected!');
-});
+
+mongoose
+  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('✅ Connected to MongoDB Atlas'))
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err);
+    process.exit(1);
+  });
+
+// your routes
+app.get('/', (req, res) => res.send('🚀 API is live — MongoDB is connected!'));
 app.use('/auth', authRoutes);
 app.use('/api/languages', languagesRouter);
 app.use('/api/levels', levelsRouter);

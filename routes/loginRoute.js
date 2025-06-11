@@ -1,16 +1,16 @@
-// routes/auth.js
-
 const express = require('express');
-const loginController = require('../controllers/authentication/loginController');
-const { checkStatus } = require('../middleware/auth/checkStatus');
+const cookieParser = require('cookie-parser');
+const { loginController, adminLoginController } = require('../controllers/authentication/loginController');
+const refreshTokenHandler = require('../middleware/auth/refreshTokenHandler');
 const router = express.Router();
 
-
-/**
- * @route   POST /auth/register
- * @desc    Register a new user and send verification email
- * @access  Public
- */
+// 1️⃣ Login endpoints (issue accessToken + set refreshToken cookie)
 router.post('/login', loginController);
+router.post('/admin/login', adminLoginController);
+
+// 2️⃣ Refresh endpoint (uses cookie + middleware to mint new access token)
+router.get('/refresh', refreshTokenHandler, (req, res) => {
+  return res.status(200).json({ token: res.locals.newAccessToken });
+});
 
 module.exports = router;

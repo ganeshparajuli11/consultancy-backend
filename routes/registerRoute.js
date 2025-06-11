@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { register, checkUsernameAvailability } = require('../controllers/authentication/register');
+const { register, checkUsernameAvailability, adminSignupController } = require('../controllers/authentication/register');
 
 
 /**
@@ -11,6 +11,8 @@ const { register, checkUsernameAvailability } = require('../controllers/authenti
  * @access  Public
  */
 router.post('/register', register);
+router.post('/admin/register', adminSignupController);
+
 
 /**
  * @route   GET /auth/check-username?userName=example

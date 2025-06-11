@@ -129,7 +129,7 @@ async function checkUsernameAvailability(req, res) {
   if (!userName || typeof userName !== 'string' || !/^[a-zA-Z0-9]{3,30}$/.test(userName)) {
     return res.status(400).json({
       success: false,
-      error: { code: 'INVALID_USERNAME', message: 'Invalid username format.' }
+      error: { code: 'INVALID_USERNAME', message: 'Invalid username format.' } 
     });
   }
 
@@ -146,4 +146,104 @@ async function checkUsernameAvailability(req, res) {
   return res.status(200).json({ available: true });
 }
 
-module.exports = { register,checkUsernameAvailability };
+
+
+// admin
+// ——— Admin Signup Schema ———
+const adminSignupSchema = Joi.object({
+  name:     Joi.string().min(2).max(50).required(),
+  email:    Joi.string().email().required(),
+  password: Joi.string().min(8).required()
+});
+
+async function adminSignupController(req, res) {
+  // 1️⃣ Validate input
+  const { error, value } = adminSignupSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code:    'VALIDATION_ERROR',
+        message: error.details[0].message
+      }
+    });
+  }
+  const { name, email, password } = value;
+
+  // 2️⃣ Check email uniqueness
+  if (await User.exists({ email: email.toLowerCase().trim() })) {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code:    'EMAIL_TAKEN',
+        message: 'This email is already registered.'
+      }
+    });
+  }
+
+  // 3️⃣ Hash password
+  const hashedPassword = await argon2.hash(password);
+
+  // 4️⃣ Build new admin user, auto-generate userName
+  const defaultUserName = `admin_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+  const admin = new User({
+    name,
+    userName:      defaultUserName,
+    email:         email.toLowerCase().trim(),
+    password:      hashedPassword,
+    role:          'admin',
+    emailVerified: true    // skip email verification
+  });
+
+  // 5️⃣ Save & handle Mongoose validation errors
+  try {
+    await admin.save();
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      const details = Object.values(err.errors).map(e => ({
+        field:   e.path,
+        message: e.message
+      }));
+      return res.status(400).json({
+        success: false,
+        error: {
+          code:    'VALIDATION_ERROR',
+          message: 'Admin data failed schema validation.',
+          details
+        }
+      });
+    }
+    // unexpected
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code:    'INTERNAL_SERVER_ERROR',
+        message: 'An unexpected error occurred.'
+      }
+    });
+  }
+
+  // 6️⃣ (Optional) Issue JWT right away
+  const payload = { id: admin._id, role: admin.role, email: admin.email };
+  const token   = jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '15m'
+  });
+
+  // 7️⃣ Send success response
+  return res.status(201).json({
+    success: true,
+    message: 'Admin account created successfully.',
+    token,
+    user: {
+      id:    admin._id,
+      name:  admin.name,
+      email: admin.email,
+      role:  admin.role
+    }
+  });
+}
+
+
+
+module.exports = { register,checkUsernameAvailability,adminSignupController };
