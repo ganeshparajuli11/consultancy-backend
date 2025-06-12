@@ -47,10 +47,14 @@ mongoose.connect(MONGO_URI, {
 
 // Global middleware (security first)
 app.use(helmet);         
+
 app.use(cors({
   origin: ['https://admin.langzy.co', 'http://localhost:5173'],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],  // include OPTIONS for preflight
+  allowedHeaders: ['Content-Type', 'Authorization']      // explicitly allow headers used
 }));
+
         
 app.use(rateLimiter);      
 app.use(cookieParser());   
