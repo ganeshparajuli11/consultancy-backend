@@ -2,13 +2,12 @@
 require('dotenv').config(); 
 
 const express = require('express');
-
+const cors = require('cors');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
 
 // Security middleware
 const helmet = require('./middleware/Ssecurity/helmet');
-const cors = require('./middleware/Ssecurity/cors');
 const rateLimiter = require('./middleware/Ssecurity/rateLimiter');
 
 
@@ -48,7 +47,11 @@ mongoose.connect(MONGO_URI, {
 
 // Global middleware (security first)
 app.use(helmet);         
-app.use(cors);            
+app.use(cors({
+  origin: ['https://admin.langzy.co', 'http://localhost:5173'],
+  credentials: true
+}));
+        
 app.use(rateLimiter);      
 app.use(cookieParser());   
 
