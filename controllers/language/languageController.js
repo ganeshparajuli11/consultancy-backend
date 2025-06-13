@@ -3,6 +3,7 @@
 const Joi = require('joi');
 const Language = require('../../models/languageModel');
 const Level    = require('../../models/levelModel');
+const cloudinary = require('../../utils/cloudinaryUploader');
 
 // Validation schemas (unchanged except allowing levels)
 const createLanguageSchema = Joi.object({
@@ -31,7 +32,7 @@ const createLanguageSchema = Joi.object({
 const updateLanguageSchema = createLanguageSchema.fork(['name','code','levels'], schema => schema.optional());
 // Create a new language
 async function createLanguage(req, res) {
-  // 1️⃣ Validate
+  // 1️⃣ Joi validation
   const { error, value } = createLanguageSchema.validate(req.body);
   if (error) {
     return res.status(400).json({
@@ -41,11 +42,28 @@ async function createLanguage(req, res) {
   }
 
   try {
-    // 2️⃣ Save Language
+    // 2️⃣ Handle logo upload if a file is attached (e.g., for IELTS)
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'langzy/flags'
+      });
+
+      value.flag = result.secure_url;
+
+      // Delete the local temp file
+      fs.unlinkSync(req.file.path);
+    }
+
+    // 3️⃣ If no uploaded image and no manual flag, use flag CDN
+    if (!value.flag && value.code) {
+      value.flag = `https://flagcdn.com/w80/${value.code.toLowerCase()}.png`;
+    }
+
+    // 4️⃣ Save to MongoDB
     const language = new Language(value);
     await language.save();
 
-    // 3️⃣ If levels provided, link them
+    // 5️⃣ Link levels if provided
     if (value.levels && value.levels.length) {
       await Level.updateMany(
         { _id: { $in: value.levels } },
@@ -56,14 +74,15 @@ async function createLanguage(req, res) {
     return res.status(201).json({ success: true, data: language });
 
   } catch (err) {
-    // duplicate-key
+    // Duplicate key
     if (err.code === 11000) {
       return res.status(409).json({
         success: false,
         error: { code: 'LANGUAGE_EXISTS', message: 'Language name or code already exists.' }
       });
     }
-    // mongoose validation
+
+    // Mongoose validation errors
     if (err.name === 'ValidationError') {
       const fieldErrors = Object.values(err.errors).map(e => ({
         field: e.path,
@@ -78,6 +97,7 @@ async function createLanguage(req, res) {
         }
       });
     }
+
     console.error('Create language error:', err);
     return res.status(500).json({
       success: false,
@@ -121,38 +141,61 @@ async function getLanguageById(req, res) {
 
 // Update an existing language
 async function updateLanguage(req, res) {
-  // 1️⃣ Validate
+  // 1️⃣ Validate input
   const { error, value } = updateLanguageSchema.validate(req.body);
   if (error) {
-    return res.status(400).json({ 
-      success: false, 
-      error: { code: 'VALIDATION_ERROR', message: error.details[0].message } 
+    return res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: error.details[0].message }
     });
   }
 
   try {
-    // 2️⃣ Fetch existing for diff
+    // 2️⃣ Get existing language for comparison
     const existing = await Language.findById(req.params.id).select('levels');
     if (!existing) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Language not found.' } });
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Language not found.' }
+      });
     }
 
-    // 3️⃣ Update language doc
+    // 3️⃣ Handle new file upload if present
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: 'langzy/flags'
+      });
+      value.flag = result.secure_url;
+
+      // Delete local temp file
+      fs.unlinkSync(req.file.path);
+    }
+
+    // 4️⃣ Use FlagCDN if no uploaded image or manual flag
+    if (!value.flag && value.code) {
+      value.flag = `https://flagcdn.com/w80/${value.code.toLowerCase()}.png`;
+    }
+
+    // 5️⃣ Update language
     const updated = await Language.findByIdAndUpdate(
       req.params.id,
       value,
       { new: true, runValidators: true }
     );
+
     if (!updated) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Language not found.' } });
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Language not found.' }
+      });
     }
 
-    // 4️⃣ Sync Level.language refs if levels changed
+    // 6️⃣ Sync Level.language references if levels changed
     if (value.levels) {
       const oldIds = existing.levels.map(id => id.toString());
       const newIds = value.levels.map(id => id.toString());
 
-      const toAdd    = newIds.filter(id => !oldIds.includes(id));
+      const toAdd = newIds.filter(id => !oldIds.includes(id));
       const toRemove = oldIds.filter(id => !newIds.includes(id));
 
       if (toAdd.length) {
@@ -161,6 +204,7 @@ async function updateLanguage(req, res) {
           { $set: { language: updated._id } }
         );
       }
+
       if (toRemove.length) {
         await Level.updateMany(
           { _id: { $in: toRemove } },
@@ -173,17 +217,37 @@ async function updateLanguage(req, res) {
 
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ success: false, error: { code: 'LANGUAGE_EXISTS', message: 'Language name or code already exists.' } });
+      return res.status(409).json({
+        success: false,
+        error: { code: 'LANGUAGE_EXISTS', message: 'Language name or code already exists.' }
+      });
     }
     if (err.name === 'ValidationError') {
-      const fieldErrors = Object.values(err.errors).map(e => ({ field: e.path, message: e.message }));
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Language data failed schema validation', details: fieldErrors } });
+      const fieldErrors = Object.values(err.errors).map(e => ({
+        field: e.path,
+        message: e.message
+      }));
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Language data failed schema validation',
+          details: fieldErrors
+        }
+      });
     }
     if (err.name === 'CastError') {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid language ID.' } });
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_ID', message: 'Invalid language ID.' }
+      });
     }
+
     console.error('Update language error:', err);
-    return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Unable to update language.' } });
+    return res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Unable to update language.' }
+    });
   }
 }
 

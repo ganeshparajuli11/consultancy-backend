@@ -7,6 +7,11 @@ const LanguageSchema = new mongoose.Schema({
         unique: true,
         trim: true
     },
+    flag: {
+        type: String,
+        unique: false,
+        default: 'https://example.com/default-flag.png',
+    },
     code: {
         type: String,
         required: true,
@@ -29,7 +34,7 @@ const LanguageSchema = new mongoose.Schema({
     }],
     enrolledStudents: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User' 
+        ref: 'User'
     }],
     isActive: {
         type: Boolean,

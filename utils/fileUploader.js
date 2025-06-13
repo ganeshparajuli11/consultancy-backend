@@ -1,4 +1,3 @@
-// utils/fileUploader.js
 const uploadWithCloudinary = require('./cloudinaryUploader');
 const uploadWithS3 = require('./s3Uploader');
 

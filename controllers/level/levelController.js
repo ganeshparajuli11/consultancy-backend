@@ -1,40 +1,30 @@
 // controllers/levelController.js
-
 const Joi = require('joi');
 const Level = require('../../models/levelModel');
 
 // Validation schemas
 const createLevelSchema = Joi.object({
   name: Joi.string().min(1).max(100).required(),
-  code: Joi.string()
-           .pattern(/^[A-Za-z0-9-]+$/)
-           .min(1)
-           .max(20)
-           .required()
-           .messages({
-             'string.pattern.base': '"code" may only contain letters, numbers, and hyphens'
-           }),
+  code: Joi.string().pattern(/^[A-Za-z0-9-]+$/).min(1).max(20).required()
+       .messages({ 'string.pattern.base': '"code" may only contain letters, numbers, and hyphens' }),
   description: Joi.string().allow('').optional(),
   order: Joi.number().integer().min(0).required(),
-  language: Joi.string().optional(), // <-- New field
+  language: Joi.string().optional(),
+  flag: Joi.string().uri().optional(),  
   isActive: Joi.boolean().optional()
 });
 
 const updateLevelSchema = Joi.object({
   name: Joi.string().min(1).max(100).optional(),
-  code: Joi.string()
-           .pattern(/^[A-Za-z0-9-]+$/)
-           .min(1)
-           .max(20)
-           .optional()
-           .messages({
-             'string.pattern.base': '"code" may only contain letters, numbers, and hyphens'
-           }),
+  code: Joi.string().pattern(/^[A-Za-z0-9-]+$/).min(1).max(20).optional()
+       .messages({ 'string.pattern.base': '"code" may only contain letters, numbers, and hyphens' }),
   description: Joi.string().allow('').optional(),
   order: Joi.number().integer().min(0).optional(),
-  language: Joi.string().optional(), // <-- New field
+  language: Joi.string().optional(),
+  flag: Joi.string().uri().optional(),   
   isActive: Joi.boolean().optional()
 });
+
 
 
 // Create a new level
