@@ -49,7 +49,7 @@ mongoose.connect(MONGO_URI, {
 app.use(helmet);         
 
 app.use(cors({
-  origin: ['https://admin.langzy.co', 'http://localhost:5173'],
+  origin: ['https://admin.langzy.co', 'http://localhost:5173','https://langzy.co/'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],  // include OPTIONS for preflight
   allowedHeaders: ['Content-Type', 'Authorization']      // explicitly allow headers used

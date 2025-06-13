@@ -75,10 +75,12 @@ const loginController = async (req, res, next) => {
     // Set refresh token cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
+      secure: process.env.NODE_ENV !== "development",  
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
+
+// production for local
 
     // Send response
     return res.status(200).json({
@@ -211,4 +213,4 @@ const verifyAccessToken = (req, res, next) => {
   }
 };
 
-module.exports = {loginController,adminLoginController,verifyAccessToken };
+module.exports = { loginController, adminLoginController, verifyAccessToken };
