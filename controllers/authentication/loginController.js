@@ -73,12 +73,13 @@ const loginController = async (req, res, next) => {
     await user.save();
 
     // Set refresh token cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== "development",  
-      sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+res.cookie("refreshToken", refreshToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV !== "development", // secure in prod, allows non-HTTPS in dev
+  sameSite: "none",                                // ← required for cross-site
+  maxAge: 7 * 24 * 60 * 60 * 1000,                  // one week
+});
+
 
 // production for local
 
