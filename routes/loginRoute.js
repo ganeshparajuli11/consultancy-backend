@@ -1,11 +1,13 @@
 const express = require('express');
-const cookieParser = require('cookie-parser');
+
 const { loginController, adminLoginController } = require('../controllers/authentication/loginController');
 const refreshTokenHandler = require('../middleware/auth/refreshTokenHandler');
+
 const router = express.Router();
 
-// 1️⃣ Login endpoints (issue accessToken + set refreshToken cookie)
-router.post('/login', loginController);
+
+//    limiter will block repeated clicks/hits from the same IP
+router.post('/login',  loginController);
 router.post('/admin/login', adminLoginController);
 
 // 2️⃣ Refresh endpoint (uses cookie + middleware to mint new access token)
