@@ -3,7 +3,8 @@ const cloudinary = require('./cloudinary');
 const uploadWithCloudinary = async (file) => {
   try {
     const result = await cloudinary.uploader.upload(file.path, {
-      folder: 'langzy/flags'
+      folder: 'langzy/flags',
+      resource_type: 'auto'       
     });
     return result.secure_url;
   } catch (err) {

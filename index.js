@@ -25,7 +25,7 @@ const landingRoutes = require('./routes/ui/landingRoutes');
 const videoCallRouter = require('./routes/video/videoCallRoute');
 const sectionRoutes = require('./routes/sectionRoute');
 const jitsiRoutes = require('./routes/video/jitsiRoutes');
-
+const employeAuth = require('./routes/admin-head/employeeRoute');
 // Initialize app
 const app = express();
 app.use(cookieParser());
@@ -85,6 +85,8 @@ app.use('/api', landingRoutes);
 app.use('/api/call', videoCallRouter);
 app.use('/api/section', sectionRoutes);
 app.use('/api/jitsi', jitsiRoutes);
+app.use('/auth', employeAuth);
+
 
 
 

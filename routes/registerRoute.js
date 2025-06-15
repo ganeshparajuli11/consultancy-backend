@@ -1,8 +1,14 @@
 // routes/auth.js
 
 const express = require('express');
-const router = express.Router();
-const { register, checkUsernameAvailability, adminSignupController } = require('../controllers/authentication/register');
+const router  = express.Router();
+
+const {
+  register,
+  adminSignupController,
+  checkUsernameAvailability,
+        // ← new multer.fields() middleware
+} = require('../controllers/authentication/register');
 
 
 /**
@@ -11,14 +17,20 @@ const { register, checkUsernameAvailability, adminSignupController } = require('
  * @access  Public
  */
 router.post('/register', register);
-router.post('/admin/register', adminSignupController);
 
+/**
+ * @route   POST /auth/admin/register
+ * @desc    Register a new admin user
+ * @access  Public
+ */
+router.post('/admin/register', adminSignupController);
 
 /**
  * @route   GET /auth/check-username?userName=example
- * @desc    Check if a username is available, return suggestions if taken
+ * @desc    Check if a username is available
  * @access  Public
  */
 router.get('/check-username', checkUsernameAvailability);
+
 
 module.exports = router;

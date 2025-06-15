@@ -1,6 +1,7 @@
 const User = require('../../models/userModel');
 const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
+const { Tutor, Counsellor } = require('../../models/employeeModel');
 
 const loginController = async (req, res, next) => {
   try {
@@ -214,4 +215,96 @@ const verifyAccessToken = (req, res, next) => {
   }
 };
 
-module.exports = { loginController, adminLoginController, verifyAccessToken };
+
+// ————————————— TUTOR LOGIN —————————————
+const tutorLoginController = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const lookup = email.toLowerCase().trim();
+    const tutor = await Tutor.findOne({ email: lookup });
+    if (!tutor) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const match = await argon2.verify(tutor.password, password);
+    if (!match) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const payload = { id: tutor._id, role: tutor.role, email: tutor.email };
+    const { accessToken, refreshToken } = signTokens(payload);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== "development",
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.json({
+      message: "Tutor login successful",
+      token: accessToken,
+      user: {
+        id: tutor._id,
+        name: tutor.name,
+        email: tutor.email,
+        role: tutor.role
+      }
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ————————————— COUNSELLOR LOGIN —————————————
+const counsellorLoginController = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const lookup = email.toLowerCase().trim();
+    const counsellor = await Counsellor.findOne({ email: lookup });
+    if (!counsellor) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const match = await argon2.verify(counsellor.password, password);
+    if (!match) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const payload = { id: counsellor._id, role: counsellor.role, email: counsellor.email };
+    const { accessToken, refreshToken } = signTokens(payload);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== "development",
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.json({
+      message: "Counsellor login successful",
+      token: accessToken,
+      user: {
+        id: counsellor._id,
+        name: counsellor.name,
+        email: counsellor.email,
+        role: counsellor.role
+      }
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+module.exports = { loginController, adminLoginController, verifyAccessToken, counsellorLoginController,tutorLoginController };

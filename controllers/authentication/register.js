@@ -5,17 +5,22 @@ const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 const Joi = require('joi');
 const User = require('../../models/userModel');
+const { Employee, Tutor, Counsellor } = require('../../models/employeeModel');
 const { sendVerificationEmail } = require('../../services/emailService');
+const uploadWithCloudinary = require('../../utils/cloudinaryUploader');
+const fs = require('fs');
+const multer = require('multer');
+const path = require('path');
 
 // === Validation Schema ===
 const signupSchema = Joi.object({
-  name:     Joi.string().min(2).max(50).required(),
+  name: Joi.string().min(2).max(50).required(),
   userName: Joi.string().alphanum().min(3).max(30).required(),
-  email:    Joi.string().email().required(),
+  email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
   language: Joi.string().hex().length(24).optional()
     .messages({ 'string.hex': 'Invalid language ID provided.' }),
-  level:    Joi.string().hex().length(24).optional()
+  level: Joi.string().hex().length(24).optional()
     .messages({ 'string.hex': 'Invalid level ID provided.' })
 });
 
@@ -30,6 +35,7 @@ async function suggestUsernames(base, count = 5) {
   const takenSet = new Set(taken.map(u => u.userName));
   return candidates.filter(u => !takenSet.has(u)).slice(0, count);
 }
+
 
 // === Controller: Signup / Register ===
 async function register(req, res) {
@@ -77,7 +83,7 @@ async function register(req, res) {
     // 5️⃣ Build user object
     const userData = { name, userName, email, password: hashedPassword, emailVerified: false };
     if (language) userData.language = language;
-    if (level)    userData.level    = level;
+    if (level) userData.level = level;
 
     // 6️⃣ Create user
     const user = new User(userData);
@@ -85,7 +91,7 @@ async function register(req, res) {
     // 7️⃣ Generate email token
     const emailToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1d' });
     user.emailVerifyToken = emailToken;
-    user.emailVerifyTokenExpires = new Date(Date.now() + 24*3600*1000);
+    user.emailVerifyTokenExpires = new Date(Date.now() + 24 * 3600 * 1000);
     await user.save();
 
     // 8️⃣ Send verification email
@@ -129,7 +135,7 @@ async function checkUsernameAvailability(req, res) {
   if (!userName || typeof userName !== 'string' || !/^[a-zA-Z0-9]{3,30}$/.test(userName)) {
     return res.status(400).json({
       success: false,
-      error: { code: 'INVALID_USERNAME', message: 'Invalid username format.' } 
+      error: { code: 'INVALID_USERNAME', message: 'Invalid username format.' }
     });
   }
 
@@ -146,13 +152,11 @@ async function checkUsernameAvailability(req, res) {
   return res.status(200).json({ available: true });
 }
 
-
-
 // admin
 // ——— Admin Signup Schema ———
 const adminSignupSchema = Joi.object({
-  name:     Joi.string().min(2).max(50).required(),
-  email:    Joi.string().email().required(),
+  name: Joi.string().min(2).max(50).required(),
+  email: Joi.string().email().required(),
   password: Joi.string().min(8).required()
 });
 
@@ -163,7 +167,7 @@ async function adminSignupController(req, res) {
     return res.status(400).json({
       success: false,
       error: {
-        code:    'VALIDATION_ERROR',
+        code: 'VALIDATION_ERROR',
         message: error.details[0].message
       }
     });
@@ -175,7 +179,7 @@ async function adminSignupController(req, res) {
     return res.status(409).json({
       success: false,
       error: {
-        code:    'EMAIL_TAKEN',
+        code: 'EMAIL_TAKEN',
         message: 'This email is already registered.'
       }
     });
@@ -188,10 +192,10 @@ async function adminSignupController(req, res) {
   const defaultUserName = `admin_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
   const admin = new User({
     name,
-    userName:      defaultUserName,
-    email:         email.toLowerCase().trim(),
-    password:      hashedPassword,
-    role:          'admin',
+    userName: defaultUserName,
+    email: email.toLowerCase().trim(),
+    password: hashedPassword,
+    role: 'admin',
     emailVerified: true    // skip email verification
   });
 
@@ -201,13 +205,13 @@ async function adminSignupController(req, res) {
   } catch (err) {
     if (err.name === 'ValidationError') {
       const details = Object.values(err.errors).map(e => ({
-        field:   e.path,
+        field: e.path,
         message: e.message
       }));
       return res.status(400).json({
         success: false,
         error: {
-          code:    'VALIDATION_ERROR',
+          code: 'VALIDATION_ERROR',
           message: 'Admin data failed schema validation.',
           details
         }
@@ -218,7 +222,7 @@ async function adminSignupController(req, res) {
     return res.status(500).json({
       success: false,
       error: {
-        code:    'INTERNAL_SERVER_ERROR',
+        code: 'INTERNAL_SERVER_ERROR',
         message: 'An unexpected error occurred.'
       }
     });
@@ -226,7 +230,7 @@ async function adminSignupController(req, res) {
 
   // 6️⃣ (Optional) Issue JWT right away
   const payload = { id: admin._id, role: admin.role, email: admin.email };
-  const token   = jwt.sign(payload, process.env.JWT_SECRET, {
+  const token = jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '15m'
   });
 
@@ -236,14 +240,15 @@ async function adminSignupController(req, res) {
     message: 'Admin account created successfully.',
     token,
     user: {
-      id:    admin._id,
-      name:  admin.name,
+      id: admin._id,
+      name: admin.name,
       email: admin.email,
-      role:  admin.role
+      role: admin.role
     }
   });
 }
 
 
-
-module.exports = { register,checkUsernameAvailability,adminSignupController };
+module.exports = {
+  register, checkUsernameAvailability, adminSignupController,
+};
