@@ -32,7 +32,26 @@ const LevelSchema = new Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date,
+    default: null
+  },
+  deletedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  auditLogs: [{
+    action: { type: String, required: true },            
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    timestamp: { type: Date, default: Date.now },
+    message: { type: String, default: '' }
+  }]
 }, {
   timestamps: true
 });

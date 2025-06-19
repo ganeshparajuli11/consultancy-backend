@@ -3,6 +3,7 @@ const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 const { Tutor, Counsellor } = require('../../models/employeeModel');
 
+
 const loginController = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -58,7 +59,7 @@ const loginController = async (req, res, next) => {
     };
 
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || "15m"
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d"
     });
 
     const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, {

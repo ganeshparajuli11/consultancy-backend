@@ -6,8 +6,37 @@ const refreshTokenHandler = require('../middleware/auth/refreshTokenHandler');
 const router = express.Router();
 
 
-//    limiter will block repeated clicks/hits from the same IP
-router.post('/login',  loginController);
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Log in a user with email and password
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *               password:
+ *                 type: string
+ *                 example: "UserSecure123"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       401:
+ *         description: Invalid email or password
+ *       500:
+ *         description: Server error
+ */
+router.post('/login', loginController);
 router.post('/admin/login', adminLoginController);
 
 // 2️⃣ Refresh endpoint (uses cookie + middleware to mint new access token)

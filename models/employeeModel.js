@@ -47,7 +47,8 @@ const tutorSchema = new Schema({
   cv:          { type: String },     // store URL string
   location:    { type: String },
   rating:      { type: Number, min: 0, max: 5 },
-  review:      { type: String }
+  review:      { type: String },
+  isActive: { type: Boolean, default: true }
 });
 
 const Tutor = Employee.discriminator('Tutor', tutorSchema);

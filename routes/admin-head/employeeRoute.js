@@ -1,7 +1,8 @@
 const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
-const { registerTutor, registerCounsellor, getAllStaff } = require('../../controllers/admin-head/employeeController');
+const { registerTutor, registerCounsellor, getAllStaff, updateEmployee } = require('../../controllers/admin-head/employeeController');
+const { toggleEmployeeActiveStatus } = require('../../controllers/language/languageController');
 
 
 const router = express.Router();
@@ -38,4 +39,15 @@ router.post(
 );
 
 router.get('/staff/all', getAllStaff);
+
+router.put(
+  '/employee/:id',
+  upload.fields([
+    { name: 'profilePicture', maxCount: 1 },
+    { name: 'cv',             maxCount: 1 },
+    { name: 'validDocs',      maxCount: 10 }
+  ]),
+  updateEmployee
+);
+router.patch('/employee/:id/active', toggleEmployeeActiveStatus);
 module.exports = router;

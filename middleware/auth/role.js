@@ -20,12 +20,19 @@ const checkIsCounseller = (req, res, next) => {
 };
 
 
-const checkIsAdmin = (req, res, next) => {
-  if (req.user?.role !== "admin") {
-    return res.status(403).json({ message: "Forbidden: Admin access only" });
+function checkIsAdmin(req, res, next) {
+  // DEV BYPASS: allow everyone through when developing locally
+  if (process.env.NODE_ENV === 'development') {
+    return next();
   }
+
+  // your real admin-only logic comes next
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Forbidden: Admins only' });
+  }
+
   next();
-};
+}
 
 module.exports = {
   checkIsUser,

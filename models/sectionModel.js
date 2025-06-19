@@ -34,15 +34,17 @@ const SectionSchema = new Schema({
     ref: 'User'
   },
   schedule: [{
-    day:       { type: String, enum: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] },
+    day: { type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
     startTime: { type: String },
-    endTime:   { type: String }  
+    endTime: { type: String }
   }],
   capacity: {
     type: Number,
     min: 1,
     default: 20
   },
+  capacityAlert: { type: Boolean, default: false },
+  isArchived: { type: Boolean, default: false },
   enrolled: {
     type: Number,
     min: 0,
@@ -51,7 +53,18 @@ const SectionSchema = new Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  changeHistory: [{
+    action: { type: String, enum: ['created', 'updated', 'enrolled', 'removed', 'archived'], required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    message: { type: String },
+    timestamp: { type: Date, default: Date.now }
+  }],
+  enrolledStudents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
+
 }, {
   timestamps: true
 });

@@ -36,6 +36,12 @@ const LanguageSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
+    auditLogs: [{
+        action: { type: String },             
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        timestamp: { type: Date, default: Date.now },
+        message: { type: String }
+    }],
     isActive: {
         type: Boolean,
         default: true

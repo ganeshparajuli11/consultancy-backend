@@ -1,6 +1,7 @@
-// controllers/levelController.js
 const Joi = require('joi');
 const Level = require('../../models/levelModel');
+const Language = require('../../models/languageModel');
+const Section = require('../../models/sectionModel'); // for dependency checks
 
 // Validation schemas
 const createLevelSchema = Joi.object({
@@ -10,7 +11,6 @@ const createLevelSchema = Joi.object({
   description: Joi.string().allow('').optional(),
   order: Joi.number().integer().min(0).required(),
   language: Joi.string().optional(),
-  flag: Joi.string().uri().optional(),  
   isActive: Joi.boolean().optional()
 });
 
@@ -20,151 +20,230 @@ const updateLevelSchema = Joi.object({
        .messages({ 'string.pattern.base': '"code" may only contain letters, numbers, and hyphens' }),
   description: Joi.string().allow('').optional(),
   order: Joi.number().integer().min(0).optional(),
-  language: Joi.string().optional(),
-  flag: Joi.string().uri().optional(),   
+  language: Joi.string().allow(null).optional(),
   isActive: Joi.boolean().optional()
 });
 
-
+// Helper to log audit for Level and Language
+async function logAction(doc, action, userId, message = '') {
+  doc.auditLogs.push({ action, userId, message });
+  await doc.save();
+}
 
 // Create a new level
 async function createLevel(req, res) {
-  // 1️⃣ Joi validation
   const { error, value } = createLevelSchema.validate(req.body);
   if (error) {
-    return res.status(400).json({
-      success: false,
-      error: { code: 'VALIDATION_ERROR', message: error.details[0].message }
-    });
+    return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
   try {
-    // 2️⃣ Attempt to save to MongoDB
     const level = new Level(value);
     await level.save();
+    // audit
+    await logAction(level, 'created', req.user.id, 'Level created');
+
+    // link to language
+    if (value.language) {
+      const lang = await Language.findById(value.language);
+      if (lang) {
+        lang.levels.push(level._id);
+        await logAction(lang, 'level_added', req.user.id, `Level ${level._id} added`);
+      }
+    }
+
     return res.status(201).json({ success: true, data: level });
-
   } catch (err) {
-    // 3️⃣ Handle duplicate‑key (11000)
     if (err.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        error: { code: 'LEVEL_EXISTS', message: 'Level name or code already exists.' }
-      });
+      return res.status(409).json({ success: false, error: 'Level name or code already exists.' });
     }
-
-    // 4️⃣ Handle Mongoose validation errors
     if (err.name === 'ValidationError') {
-      const fieldErrors = Object.values(err.errors).map(e => ({
-        field:   e.path,
-        message: e.message
-      }));
-      return res.status(400).json({
-        success: false,
-        error: {
-          code:    'VALIDATION_ERROR',
-          message: 'Level data failed schema validation',
-          details: fieldErrors
-        }
-      });
+      return res.status(400).json({ success: false, error: err.message });
     }
-
-    console.error('Create level error:', err);
-    return res.status(500).json({
-      success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Unable to create level.' }
-    });
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to create level.' });
   }
 }
 
-// Fetch all levels
+// Get all levels (including deleted if requested)
 async function getAllLevels(req, res) {
+  const { active, includeDeleted } = req.query;
   const filter = {};
-  if (req.query.active) filter.isActive = req.query.active === 'true';
+  if (active !== undefined) filter.isActive = active === 'true';
+  if (!includeDeleted) filter.isDeleted = false;
+
   try {
     const levels = await Level.find(filter).sort('order');
     return res.json({ success: true, data: levels });
   } catch (err) {
-    console.error('Fetch levels error:', err);
-    return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Unable to fetch levels.' } });
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to fetch levels.' });
   }
 }
 
-// Fetch a single level by ID
+// Get single level
 async function getLevelById(req, res) {
   try {
     const level = await Level.findById(req.params.id);
-    if (!level) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Level not found.' } });
+    if (!level || level.isDeleted) {
+      return res.status(404).json({ success: false, error: 'Level not found.' });
     }
     return res.json({ success: true, data: level });
-
   } catch (err) {
-    // Handle invalid ObjectId
     if (err.name === 'CastError') {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid level ID.' } });
+      return res.status(400).json({ success: false, error: 'Invalid level ID.' });
     }
-    console.error('Fetch level error:', err);
-    return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Unable to fetch level.' } });
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to fetch level.' });
   }
 }
 
-// Update an existing level
+// Update existing level
 async function updateLevel(req, res) {
-  // 1️⃣ Joi validation
   const { error, value } = updateLevelSchema.validate(req.body);
   if (error) {
-    return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: error.details[0].message } });
+    return res.status(400).json({ success: false, error: error.details[0].message });
   }
 
   try {
-    // 2️⃣ Attempt update with runValidators
-    const updated = await Level.findByIdAndUpdate(
-      req.params.id,
-      value,
-      { new: true, runValidators: true }
-    );
-    if (!updated) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Level not found.' } });
+    const level = await Level.findById(req.params.id);
+    if (!level || level.isDeleted) {
+      return res.status(404).json({ success: false, error: 'Level not found.' });
     }
-    return res.json({ success: true, data: updated });
 
+    const oldLang = level.language?.toString();
+    Object.assign(level, value);
+    await level.save();
+    await logAction(level, 'updated', req.user.id, 'Level updated');
+
+    // Handle language change
+    if (value.language !== undefined) {
+      const newLangId = value.language;
+      if (oldLang && oldLang !== newLangId) {
+        const oldLangDoc = await Language.findById(oldLang);
+        if (oldLangDoc) {
+          oldLangDoc.levels.pull(level._id);
+          await logAction(oldLangDoc, 'level_removed', req.user.id, `Level ${level._id} removed`);
+        }
+      }
+      if (newLangId) {
+        const newLangDoc = await Language.findById(newLangId);
+        if (newLangDoc && !newLangDoc.levels.includes(level._id)) {
+          newLangDoc.levels.push(level._id);
+          await logAction(newLangDoc, 'level_added', req.user.id, `Level ${level._id} added`);
+        }
+      }
+    }
+
+    return res.json({ success: true, data: level });
   } catch (err) {
-    // Duplicate key
     if (err.code === 11000) {
-      return res.status(409).json({ success: false, error: { code: 'LEVEL_EXISTS', message: 'Level name or code already exists.' } });
+      return res.status(409).json({ success: false, error: 'Level code or name already exists.' });
     }
-    // Mongoose validation
     if (err.name === 'ValidationError') {
-      const fieldErrors = Object.values(err.errors).map(e => ({ field: e.path, message: e.message }));
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Level data failed schema validation', details: fieldErrors } });
+      return res.status(400).json({ success: false, error: err.message });
     }
-    // Invalid ID
-    if (err.name === 'CastError') {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid level ID.' } });
-    }
-    console.error('Update level error:', err);
-    return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Unable to update level.' } });
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to update level.' });
   }
 }
 
-// Soft-delete a level
-async function deleteLevel(req, res) {
+// Soft delete (archive)
+async function archiveLevel(req, res) {
+  try {
+    const level = await Level.findById(req.params.id);
+    if (!level || level.isDeleted) {
+      return res.status(404).json({ success: false, error: 'Level not found.' });
+    }
+    // Prevent if sections exist
+    const linked = await Section.exists({ level: level._id });
+    if (linked) {
+      return res.status(400).json({ success: false, error: 'Cannot archive: level is in use.' });
+    }
+    level.isDeleted = true;
+    level.deletedAt = new Date();
+    level.deletedBy = req.user.id;
+    await level.save();
+    await logAction(level, 'soft_deleted', req.user.id, 'Level archived');
+
+    // remove from language
+    if (level.language) {
+      const lang = await Language.findById(level.language);
+      if (lang) {
+        lang.levels.pull(level._id);
+        await logAction(lang, 'level_removed', req.user.id, `Level ${level._id} archived`);
+      }
+    }
+    return res.json({ success: true, data: level });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, error: 'Invalid level ID.' });
+    }
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to archive level.' });
+  }
+}
+
+// Restore archived level
+async function restoreLevel(req, res) {
+  try {
+    const level = await Level.findById(req.params.id);
+    if (!level || !level.isDeleted) {
+      return res.status(404).json({ success: false, error: 'Level not found or not archived.' });
+    }
+    level.isDeleted = false;
+    level.deletedAt = null;
+    level.deletedBy = null;
+    await level.save();
+    await logAction(level, 'restored', req.user.id, 'Level restored');
+
+    // add back to language
+    if (level.language) {
+      const lang = await Language.findById(level.language);
+      if (lang && !lang.levels.includes(level._id)) {
+        lang.levels.push(level._id);
+        await logAction(lang, 'level_added', req.user.id, `Level ${level._id} restored`);
+      }
+    }
+    return res.json({ success: true, data: level });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ success: false, error: 'Invalid level ID.' });
+    }
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to restore level.' });
+  }
+}
+
+// Hard delete (permanent)
+async function deleteLevelPermanently(req, res) {
   try {
     const level = await Level.findById(req.params.id);
     if (!level) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Level not found.' } });
+      return res.status(404).json({ success: false, error: 'Level not found.' });
     }
-    level.isActive = false;
-    await level.save();
-    return res.json({ success: true, data: level });
-
+    // Prevent if sections exist
+    const linked = await Section.exists({ level: level._id });
+    if (linked) {
+      return res.status(400).json({ success: false, error: 'Cannot delete: level is in use.' });
+    }
+    // remove from language
+    if (level.language) {
+      const lang = await Language.findById(level.language);
+      if (lang) {
+        lang.levels.pull(level._id);
+        await logAction(lang, 'level_removed', req.user.id, `Level ${level._id} permanently deleted`);
+      }
+    }
+    await logAction(level, 'permanent_deleted', req.user.id, 'Level permanently deleted');
+    await Level.findByIdAndDelete(level._id);
+    return res.json({ success: true, message: 'Level permanently deleted.' });
   } catch (err) {
     if (err.name === 'CastError') {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_ID', message: 'Invalid level ID.' } });
+      return res.status(400).json({ success: false, error: 'Invalid level ID.' });
     }
-    console.error('Delete level error:', err);
-    return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Unable to delete level.' } });
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Unable to delete level permanently.' });
   }
 }
 
@@ -173,5 +252,7 @@ module.exports = {
   getAllLevels,
   getLevelById,
   updateLevel,
-  deleteLevel
+  archiveLevel,
+  restoreLevel,
+  deleteLevelPermanently
 };

@@ -1,10 +1,12 @@
 // index.js
 require('dotenv').config(); 
-
+const listEndpoints = require('express-list-endpoints');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsDoc = require('swagger-jsdoc');
 
 // Security middleware
 const helmet = require('./middleware/Ssecurity/helmet');
@@ -26,6 +28,7 @@ const videoCallRouter = require('./routes/video/videoCallRoute');
 const sectionRoutes = require('./routes/sectionRoute');
 const jitsiRoutes = require('./routes/video/jitsiRoutes');
 const employeAuth = require('./routes/admin-head/employeeRoute');
+const classRoutes = require('./routes/classRoute');
 // Initialize app
 const app = express();
 app.use(cookieParser());
@@ -86,11 +89,23 @@ app.use('/api/call', videoCallRouter);
 app.use('/api/section', sectionRoutes);
 app.use('/api/jitsi', jitsiRoutes);
 app.use('/auth', employeAuth);
+app.use('/api/classes',  classRoutes);
 
 
 
 
 
+// List of API
+const swaggerOptions = {
+  swaggerDefinition: {
+    openapi: '3.0.0',
+    info: { title: 'Langzy API', version: '1.0.0' }
+  },
+  apis: ['./routes/**/*.js'] // <-- include JSDoc in route files
+};
+
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 
 // Error logging and handling (last)
@@ -100,4 +115,5 @@ app.use(errorHandler);     // Send proper error responses
 // Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
+   console.table(listEndpoints(app));
 });
