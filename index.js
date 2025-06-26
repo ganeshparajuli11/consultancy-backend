@@ -29,6 +29,10 @@ const sectionRoutes = require('./routes/sectionRoute');
 const jitsiRoutes = require('./routes/video/jitsiRoutes');
 const employeAuth = require('./routes/admin-head/employeeRoute');
 const classRoutes = require('./routes/classRoute');
+const userProfileRoutes = require('./routes/profile/profileRoute');
+const notice = require('./routes/notice/noticeRoute');
+const pricingPlan= require('./routes/billsAndPayment/pricingPlanRoute');
+
 // Initialize app
 const app = express();
 app.use(cookieParser());
@@ -90,6 +94,12 @@ app.use('/api/section', sectionRoutes);
 app.use('/api/jitsi', jitsiRoutes);
 app.use('/auth', employeAuth);
 app.use('/api/classes',  classRoutes);
+app.use('/api/profile',  userProfileRoutes);
+app.use('/api/notices',  notice);
+app.use('/api/pricing',  pricingPlan);
+
+
+
 
 
 

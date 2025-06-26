@@ -4,7 +4,8 @@ const { Tutor, Counsellor } = require('../../models/employeeModel');
 const uploadWithCloudinary = require('../../utils/cloudinaryUploader');
 const argon2 = require('argon2');
 const { Employee } = require('../../models/employeeModel');
-
+const User = require('../../models/userModel');
+const mongoose = require('mongoose'); // Add this if not already imported
 // 1️⃣ Validation schemas
 const tutorSchema = Joi.object({
   name: Joi.string().required(),
@@ -258,6 +259,91 @@ async function getLanguageSummary(req, res) {
   }
 }
 
+/**
+ * Get users by role (student, tutor, counsellor) with optional search.
+ * Excludes admin users.
+ * Query: ?role=tutor&search=foo
+ */
+async function getUsersByRole(req, res) {
+  try {
+    const { role, search } = req.query;
+    const allowedRoles = ['student', 'tutor', 'counsellor', 'counselor'];
+
+    // If role is provided but not valid, return error
+    if (role && !allowedRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: `No role found: ${role}` });
+    }
+
+    // Helper for search
+    const buildSearch = (fields) => {
+      if (search && search.trim()) {
+        const regex = new RegExp(search.trim(), 'i');
+        return { $or: fields.map(f => ({ [f]: regex })) };
+      }
+      return {};
+    };
+
+    let users = [];
+    if (role === 'student') {
+      // User model for students
+      const query = { role: 'student', ...buildSearch(['name', 'email', 'userName']) };
+      users = await User.find(query)
+        .select('-password -__v -emailVerifyToken -emailVerifyTokenExpires -resetPasswordToken -resetPasswordExpires -twoFactorSecret')
+        .lean();
+      if (!users.length) {
+        return res.status(404).json({ success: false, message: 'No student found.' });
+      }
+    } else if (role === 'tutor') {
+      // Tutor model
+      const query = buildSearch(['name', 'email']);
+      users = await Tutor.find(query)
+        .select('-password -__v -emailVerifyToken -emailVerifyTokenExpires -resetPasswordToken -resetPasswordExpires')
+        .lean();
+      users.forEach(u => u.role = 'tutor');
+      if (!users.length) {
+        return res.status(404).json({ success: false, message: 'No tutor found.' });
+      }
+    } else if (role === 'counsellor' || role === 'counselor') {
+      // Counsellor model (support both spellings)
+      const query = buildSearch(['name', 'email']);
+      users = await Counsellor.find(query)
+        .select('-password -__v -emailVerifyToken -emailVerifyTokenExpires -resetPasswordToken -resetPasswordExpires')
+        .lean();
+      users.forEach(u => u.role = 'counsellor');
+      if (!users.length) {
+        return res.status(404).json({ success: false, message: 'No counsellor found.' });
+      }
+    } else {
+      // No role: return all (except admin)
+      // Students
+      const studentQuery = { role: { $ne: 'admin' }, ...buildSearch(['name', 'email', 'userName']) };
+      const students = await User.find(studentQuery)
+        .select('-password -__v -emailVerifyToken -emailVerifyTokenExpires -resetPasswordToken -resetPasswordExpires -twoFactorSecret')
+        .lean();
+      students.forEach(u => u.role = u.role || 'student');
+      // Tutors
+      const tutors = await Tutor.find(buildSearch(['name', 'email']))
+        .select('-password -__v -emailVerifyToken -emailVerifyTokenExpires -resetPasswordToken -resetPasswordExpires')
+        .lean();
+      tutors.forEach(u => u.role = 'tutor');
+      // Counsellors
+      const counsellors = await Counsellor.find(buildSearch(['name', 'email']))
+        .select('-password -__v -emailVerifyToken -emailVerifyTokenExpires -resetPasswordToken -resetPasswordExpires')
+        .lean();
+      counsellors.forEach(u => u.role = 'counsellor');
+      // Combine all
+      users = [...students, ...tutors, ...counsellors];
+      if (!users.length) {
+        return res.status(404).json({ success: false, message: 'No users found.' });
+      }
+    }
+
+    return res.json({ success: true, data: users });
+  } catch (err) {
+    console.error('Get users by role error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch users.' });
+  }
+}
 
 module.exports = {
   registerTutor,
@@ -265,5 +351,6 @@ module.exports = {
   getAllStaff,
   updateEmployee,
   cloneLanguage,
-  getLanguageSummary
+  getLanguageSummary,
+  getUsersByRole // <-- export the new controller
 };

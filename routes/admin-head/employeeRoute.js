@@ -1,8 +1,9 @@
 const express = require('express');
 const multer  = require('multer');
 const path    = require('path');
-const { registerTutor, registerCounsellor, getAllStaff, updateEmployee } = require('../../controllers/admin-head/employeeController');
+const { registerTutor, registerCounsellor, getAllStaff, updateEmployee, getUsersByRole } = require('../../controllers/admin-head/employeeController');
 const { toggleEmployeeActiveStatus } = require('../../controllers/language/languageController');
+const authenticateJWT = require('../../middleware/auth/authenticate');
 
 
 const router = express.Router();
@@ -50,4 +51,5 @@ router.put(
   updateEmployee
 );
 router.patch('/employee/:id/active', toggleEmployeeActiveStatus);
+router.get('/user',authenticateJWT, getUsersByRole);
 module.exports = router;

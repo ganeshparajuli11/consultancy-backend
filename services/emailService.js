@@ -55,4 +55,64 @@ async function sendVerificationEmail(toEmail, token) {
   await transporter.sendMail(mailOptions);
 }
 
-module.exports = { sendVerificationEmail };
+
+/**
+ * Send a styled announcement email.
+ * @param {string} to - Recipient address
+ * @param {string} subject - Announcement title
+ * @param {string} message - Plain-text announcement body
+ * @param {object} options
+ * @param {string} [options.posterUrl] - URL of an image to show at top
+ */
+async function sendAnnouncementEmail(to, subject, message, options = {}) {
+  // Build the HTML content
+  const htmlContent = `
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${subject}</title>
+    <style>
+      body { margin:0; padding:0; background:#f2f4f6; font-family:Arial,sans-serif; }
+      .container { max-width:600px; margin:40px auto; background:#fff; border-radius:8px; overflow:hidden; }
+      .header { background:#4A90E2; padding:20px; text-align:center; color:#fff; }
+      .header h1 { margin:0; font-size:24px; }
+      .hero img { width:100%; height:auto; display:block; }
+      .content { padding:30px; color:#333; font-size:16px; line-height:1.5; }
+      .footer { background:#e8ebee; padding:20px; text-align:center; font-size:12px; color:#777; }
+      @media screen and (max-width:600px) {
+        .content { padding:20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>${subject}</h1>
+      </div>
+      ${options.posterUrl ? `
+      <div class="hero">
+        <img src="${options.posterUrl}" alt="Announcement Poster" />
+      </div>` : ``}
+      <div class="content">
+        ${message.split('\n').map(line => `<p>${line}</p>`).join('')}
+      </div>
+      <div class="footer">
+        This is an automated announcement from your Langzy platform.<br/>
+        &copy; ${new Date().getFullYear()} Langzy. All rights reserved.
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+
+  // Send it
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM,
+    to,
+    subject,
+    html: htmlContent
+  });
+}
+module.exports = { sendVerificationEmail , sendAnnouncementEmail};
