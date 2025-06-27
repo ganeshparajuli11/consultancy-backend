@@ -50,7 +50,7 @@ const upload = multer({ storage });
  *       200:
  *         description: List of languages
  */
-router.get('/', authenticateJWT, checkIsAdmin, getAllLanguages);
+router.get('/', getAllLanguages);
 
 /**
  * @swagger
