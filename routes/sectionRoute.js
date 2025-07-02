@@ -149,7 +149,7 @@ router.delete('/:id', deleteSection);
 
 /**
  * @swagger
- * /api/section/section/{id}/active:
+ * /api/section/{id}/active:
  *   patch:
  *     summary: Toggle section active status
  *     tags: [Section]
@@ -170,7 +170,7 @@ router.delete('/:id', deleteSection);
  *       200:
  *         description: Status updated
  */
-router.patch('/section/:id/active', toggleSectionActiveStatus);
+router.patch('/:id/active', toggleSectionActiveStatus);
 
 /**
  * @swagger

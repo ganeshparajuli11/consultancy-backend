@@ -54,26 +54,6 @@ router.get('/', getAllLanguages);
 
 /**
  * @swagger
- * /api/languages/{id}:
- *   get:
- *     summary: Get a language by ID
- *     tags: [Languages]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - name: id
- *         in: path
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Language found
- */
-router.get('/:id', authenticateJWT, checkIsAdmin, getLanguageById);
-
-/**
- * @swagger
  * /api/languages:
  *   post:
  *     summary: Create a new language
@@ -108,6 +88,137 @@ router.get('/:id', authenticateJWT, checkIsAdmin, getLanguageById);
  *         description: Language created
  */
 router.post('/', upload.single('flag'), authenticateJWT, checkIsAdmin, createLanguage);
+
+/**
+ * @swagger
+ * /api/languages/bulk-toggle:
+ *   patch:
+ *     summary: Bulk toggle multiple languages' active status
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Bulk toggle successful
+ */
+router.patch('/bulk-toggle', authenticateJWT, checkIsAdmin, bulkToggleLanguageActiveStatus);
+
+/**
+ * @swagger
+ * /api/languages/with-levels:
+ *   get:
+ *     summary: Get all languages with their associated levels
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Returns languages with populated levels
+ */
+router.get('/with-levels', authenticateJWT, checkIsAdmin, getLanguagesWithLevels);
+
+/**
+ * @swagger
+ * /api/languages/search:
+ *   get:
+ *     summary: Search for languages by query
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         schema:
+ *           type: string
+ *         description: Search keyword for name/code/description
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *         description: Filter by active status
+ *     responses:
+ *       200:
+ *         description: Filtered list of languages
+ */
+router.get('/search', authenticateJWT, checkIsAdmin, searchLanguages);
+
+/**
+ * @swagger
+ * /api/languages/sort:
+ *   get:
+ *     summary: Sort languages by field
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *         description: "Field to sort by (default: name)"
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: Sorted list of languages
+ */
+router.get('/sort', authenticateJWT, checkIsAdmin, sortLanguages);
+
+/**
+ * @swagger
+ * /api/languages/export/csv:
+ *   get:
+ *     summary: Export all language data to CSV
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/export/csv', exportLanguagesToCSV);
+
+/**
+ * @swagger
+ * /api/languages/{id}:
+ *   get:
+ *     summary: Get a language by ID
+ *     tags: [Languages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Language found
+ */
+router.get('/:id', authenticateJWT, checkIsAdmin, getLanguageById);
 
 /**
  * @swagger
@@ -202,33 +313,6 @@ router.patch('/:id/active', authenticateJWT, checkIsAdmin, toggleLanguageActiveS
 
 /**
  * @swagger
- * /api/languages/bulk-toggle:
- *   patch:
- *     summary: Bulk toggle multiple languages' active status
- *     tags: [Languages]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               ids:
- *                 type: array
- *                 items:
- *                   type: string
- *               isActive:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Bulk toggle successful
- */
-router.patch('/bulk-toggle', authenticateJWT, checkIsAdmin, bulkToggleLanguageActiveStatus);
-
-/**
- * @swagger
  * /api/languages/{id}/clone:
  *   post:
  *     summary: Clone a language
@@ -279,73 +363,6 @@ router.get('/:id/summary', authenticateJWT, checkIsAdmin, getLanguageSummary);
 
 /**
  * @swagger
- * /api/languages/with-levels:
- *   get:
- *     summary: Get all languages with their associated levels
- *     tags: [Languages]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Returns languages with populated levels
- */
-router.get('/with-levels', authenticateJWT, checkIsAdmin, getLanguagesWithLevels);
-
-/**
- * @swagger
- * /api/languages/search:
- *   get:
- *     summary: Search for languages by query
- *     tags: [Languages]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: query
- *         schema:
- *           type: string
- *         description: Search keyword for name/code/description
- *       - in: query
- *         name: isActive
- *         schema:
- *           type: boolean
- *         description: Filter by active status
- *     responses:
- *       200:
- *         description: Filtered list of languages
- */
-router.get('/search', authenticateJWT, checkIsAdmin, searchLanguages);
-
-
-/**
- * @swagger
- * /api/languages/sort:
- *   get:
- *     summary: Sort languages by field (e.g., name, createdAt)
- *     tags: [Languages]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: sortBy
- *         schema:
- *           type: string
- *         description: Field to sort by (default: name)
- *       - in: query
- *         name: order
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *         description: Sort order
- *     responses:
- *       200:
- *         description: Sorted list of languages
- */
-
-router.get('/sort', authenticateJWT, checkIsAdmin, sortLanguages);
-
-/**
- * @swagger
  * /api/languages/{languageId}/levels/{levelId}:
  *   delete:
  *     summary: Remove a level from a language
@@ -371,22 +388,4 @@ router.get('/sort', authenticateJWT, checkIsAdmin, sortLanguages);
  */
 router.delete('/:languageId/levels/:levelId', authenticateJWT, checkIsAdmin, removeLevelFromLanguage);
 
-/**
- * @swagger
- * /api/languages/export/csv:
- *   get:
- *     summary: Export all language data to CSV
- *     tags: [Languages]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: CSV file download
- *         content:
- *           text/csv:
- *             schema:
- *               type: string
- *               format: binary
- */
-router.get('/export/csv',  exportLanguagesToCSV);
 module.exports = router;

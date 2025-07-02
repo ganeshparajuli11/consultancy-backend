@@ -12,7 +12,6 @@ const swaggerJsDoc = require('swagger-jsdoc');
 const helmet = require('./middleware/Ssecurity/helmet');
 const rateLimiter = require('./middleware/Ssecurity/rateLimiter');
 
-
 // Logging middleware
 const requestLogger = require('./middleware/logging/requestLogger');
 const errorLogger = require('./middleware/logging/errorLogger');
@@ -34,14 +33,13 @@ const notice = require('./routes/notice/noticeRoute');
 const pricingPlan= require('./routes/billsAndPayment/pricingPlanRoute');
 const pagesRoutes = require('./routes/pages/pagesRoute');
 const formRoutes = require('./routes/pages/formRoutes');
+const uploadRoutes = require('./routes/upload/uploadRoute');
 
 // Initialize app
 const app = express();
-app.use(cookieParser());
-app.set('trust proxy', 1);
 
-// connect to Atlas
-const { MONGO_URI, PORT } = process.env;
+// Get environment variables
+const { MONGO_URI, PORT = 5000 } = process.env;
 
 // MongoDB connection
 mongoose.connect(MONGO_URI, {
@@ -54,43 +52,50 @@ mongoose.connect(MONGO_URI, {
   process.exit(1);
 });
 
-// Global middleware (security first)
-app.use(helmet);         
+// Trust proxy for production
+app.set('trust proxy', 1);
 
+// Security middleware
+app.use(helmet);
+
+// CORS configuration
 app.use(cors({
   origin: [
-    'http://localhost:5173',
-    'http://localhost:5174',     
+    'http://localhost:5173', // Frontend dev server
+    'http://localhost:5174', // Admin dev server
+    'http://localhost:3000', // Alternative ports
+    'http://localhost:3001',
     'https://admin.langzy.co',
-    'https://langzy.co'           
+    'https://langzy.co'
   ],
-  credentials: true,              
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
-        
-app.use(rateLimiter);      
-app.use(cookieParser());   
+// Rate limiting
+app.use(rateLimiter);
 
-// Body parser
-app.use(express.json());   // JSON body parser
+// Body parsing middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieParser());
 
-// Logging
-app.use(requestLogger);    // Log all incoming requests
+// Logging middleware
+app.use(requestLogger);
 
-// Routes
-
-mongoose
-  .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('✅ Connected to MongoDB Atlas'))
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err);
-    process.exit(1);
+// Basic health check route
+app.get('/', (req, res) => {
+  res.json({
+    message: '🚀 API is live — MongoDB is connected!',
+    timestamp: new Date().toISOString(),
+    status: 'healthy'
   });
+});
 
-// your routes
-app.get('/', (req, res) => res.send('🚀 API is live — MongoDB is connected!'));
+// API Routes
 app.use('/auth', authRoutes);
 app.use('/api/languages', languagesRouter);
 app.use('/api/levels', levelsRouter);
@@ -100,39 +105,71 @@ app.use('/api/call', videoCallRouter);
 app.use('/api/section', sectionRoutes);
 app.use('/api/jitsi', jitsiRoutes);
 app.use('/auth', employeAuth);
-app.use('/api/classes',  classRoutes);
-app.use('/api/profile',  userProfileRoutes);
-app.use('/api/notices',  notice);
-app.use('/api/pricing',  pricingPlan);
+app.use('/api/classes', classRoutes);
+app.use('/api/profile', userProfileRoutes);
+app.use('/api/notices', notice);
+app.use('/api/pricing', pricingPlan);
 app.use('/api/pages', pagesRoutes);
 app.use('/api/forms', formRoutes);
+app.use('/api/upload', uploadRoutes);
 
-
-
-
-
-
-
-
-// List of API
+// Swagger documentation
 const swaggerOptions = {
   swaggerDefinition: {
     openapi: '3.0.0',
-    info: { title: 'Langzy API', version: '1.0.0' }
+    info: { 
+      title: 'Langzy API', 
+      version: '1.0.0',
+      description: 'API for Langzy Consultancy Management System'
+    },
+    servers: [
+      {
+        url: `http://localhost:${PORT}`,
+        description: 'Development server'
+      }
+    ]
   },
-  apis: ['./routes/**/*.js'] // <-- include JSDoc in route files
+  apis: ['./routes/**/*.js']
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 
-// Error logging and handling (last)
-app.use(errorLogger);      // Log any unhandled errors
-app.use(errorHandler);     // Send proper error responses
+// ✅ valid wildcard (slash + anything)
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`,
+    availableRoutes: '/api-docs'
+  });
+});
+
+
+app.use(errorLogger);
+app.use(errorHandler);
 
 // Start the server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
-   console.table(listEndpoints(app));
+  console.log(`📚 API Documentation available at http://localhost:${PORT}/api-docs`);
+  console.log('📋 Available endpoints:');
+  console.table(listEndpoints(app));
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  mongoose.connection.close(() => {
+    console.log('MongoDB connection closed.');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  mongoose.connection.close(() => {
+    console.log('MongoDB connection closed.');
+    process.exit(0);
+  });
 });

@@ -480,10 +480,10 @@ router.post('/:id/duplicate',
 
 /**
  * Get public form by slug (for frontend form rendering)
- * GET /api/public/forms/:slug
+ * GET /api/forms/public/:slug
  * Access: Public
  */
-router.get('/public/forms/:slug', async (req, res) => {
+router.get('/public/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     
