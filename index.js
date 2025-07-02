@@ -32,6 +32,8 @@ const classRoutes = require('./routes/classRoute');
 const userProfileRoutes = require('./routes/profile/profileRoute');
 const notice = require('./routes/notice/noticeRoute');
 const pricingPlan= require('./routes/billsAndPayment/pricingPlanRoute');
+const pagesRoutes = require('./routes/pages/pagesRoute');
+const formRoutes = require('./routes/pages/formRoutes');
 
 // Initialize app
 const app = express();
@@ -56,10 +58,15 @@ mongoose.connect(MONGO_URI, {
 app.use(helmet);         
 
 app.use(cors({
-  origin: ['https://admin.langzy.co', 'http://localhost:5173','https://langzy.co/'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],  // include OPTIONS for preflight
-  allowedHeaders: ['Content-Type', 'Authorization']      // explicitly allow headers used
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',     
+    'https://admin.langzy.co',
+    'https://langzy.co'           
+  ],
+  credentials: true,              
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
 }));
 
         
@@ -97,6 +104,8 @@ app.use('/api/classes',  classRoutes);
 app.use('/api/profile',  userProfileRoutes);
 app.use('/api/notices',  notice);
 app.use('/api/pricing',  pricingPlan);
+app.use('/api/pages', pagesRoutes);
+app.use('/api/forms', formRoutes);
 
 
 
