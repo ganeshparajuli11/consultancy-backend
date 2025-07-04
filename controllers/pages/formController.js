@@ -536,25 +536,136 @@ const submitApplication = async (req, res) => {
       return errorResponse(res, 'Form has reached maximum capacity', 400);
     }
 
-    // Check multiple submissions
-    if (!form.settings.allowMultipleSubmissions) {
-      const existingApplication = await StudentApplication.findOne({
-        applicationForm: formId,
-        'studentInfo.email': applicationData.studentInfo.email
-      });
-
-      if (existingApplication) {
-        return errorResponse(res, 'You have already submitted an application for this form', 400);
+    // Dynamic form validation based on form field definitions
+    const validationErrors = [];
+    const formData = applicationData.formData || {};
+    
+    // Validate each field in the form definition
+    form.fields.forEach(field => {
+      const value = formData[field.name];
+      const validation = field.validation || {};
+      
+      // Check required fields
+      if (field.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
+        validationErrors.push({
+          path: `formData.${field.name}`,
+          message: `${field.label} is required`
+        });
+        return;
       }
+      
+      // Skip validation if field is empty and not required
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        return;
+      }
+      
+      // Type-specific validation
+      switch (field.type) {
+        case 'email':
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value)) {
+            validationErrors.push({
+              path: `formData.${field.name}`,
+              message: `${field.label} must be a valid email address`
+            });
+          }
+          break;
+          
+        case 'tel':
+          // Remove all non-numeric characters for length check
+          const cleanPhone = value.replace(/\D/g, '');
+          if (cleanPhone.length < 10) {
+            validationErrors.push({
+              path: `formData.${field.name}`,
+              message: `${field.label} must be at least 10 digits`
+            });
+          }
+          break;
+          
+        case 'number':
+          const numValue = parseFloat(value);
+          if (isNaN(numValue)) {
+            validationErrors.push({
+              path: `formData.${field.name}`,
+              message: `${field.label} must be a valid number`
+            });
+          } else {
+            if (validation.min !== null && numValue < validation.min) {
+              validationErrors.push({
+                path: `formData.${field.name}`,
+                message: `${field.label} must be at least ${validation.min}`
+              });
+            }
+            if (validation.max !== null && numValue > validation.max) {
+              validationErrors.push({
+                path: `formData.${field.name}`,
+                message: `${field.label} must be at most ${validation.max}`
+              });
+            }
+          }
+          break;
+          
+        case 'text':
+        case 'textarea':
+          if (validation.minLength && value.length < validation.minLength) {
+            validationErrors.push({
+              path: `formData.${field.name}`,
+              message: `${field.label} must contain at least ${validation.minLength} character(s)`
+            });
+          }
+          if (validation.maxLength && value.length > validation.maxLength) {
+            validationErrors.push({
+              path: `formData.${field.name}`,
+              message: `${field.label} must contain at most ${validation.maxLength} character(s)`
+            });
+          }
+          break;
+      }
+      
+      // Pattern validation
+      if (validation.pattern) {
+        try {
+          const regex = new RegExp(validation.pattern);
+          if (!regex.test(value)) {
+            validationErrors.push({
+              path: `formData.${field.name}`,
+              message: `${field.label} format is invalid`
+            });
+          }
+        } catch (e) {
+          // Invalid regex pattern in form definition
+          console.warn(`Invalid regex pattern for field ${field.name}:`, validation.pattern);
+        }
+      }
+    });
+    
+    // Return validation errors if any
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: validationErrors
+      });
     }
 
-    // Create application
+    // Create the application with structured data
     const application = new StudentApplication({
       applicationForm: formId,
-      ...applicationData,
-      submissionSource: 'website',
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
+      studentInfo: {
+        fullName: applicationData.studentInfo?.fullName || formData.full_name || formData.fullName || '',
+        email: applicationData.studentInfo?.email || formData.email_address || formData.email || '',
+        phoneNumber: applicationData.studentInfo?.phoneNumber || formData.phone_number || formData.phone || '',
+        dateOfBirth: applicationData.studentInfo?.dateOfBirth || formData.date_of_birth || '',
+        address: applicationData.studentInfo?.address || {}
+      },
+      formData: formData,
+      status: 'pending',
+      submittedAt: new Date(),
+      communication: {
+        emailsSent: [],
+        lastContact: null
+      },
+      reviewNotes: []
     });
 
     await application.save();
@@ -564,51 +675,51 @@ const submitApplication = async (req, res) => {
       $inc: { submissions: 1 }
     });
 
-    // Send auto-reply email if enabled
-    if (form.emailNotifications.enabled && 
-        form.emailNotifications.autoReplyTemplate.subject) {
+    // Send auto-reply email if configured
+    if (form.emailNotifications?.enabled && form.emailNotifications?.autoReplyTemplate) {
       try {
-        await sendAnnouncementEmail(
-          applicationData.studentInfo.email,
-          form.emailNotifications.autoReplyTemplate.subject,
-          form.emailNotifications.autoReplyTemplate.message
-        );
-
-        // Log email sent
-        application.communication.emailsSent.push({
-          type: 'welcome',
-          subject: form.emailNotifications.autoReplyTemplate.subject,
-          sentAt: new Date()
-        });
-        await application.save();
-      } catch (emailError) {
-        console.error('Auto-reply email failed:', emailError);
-      }
-    }
-
-    // Notify admins if configured
-    if (form.emailNotifications.enabled && 
-        form.emailNotifications.adminEmails.length > 0) {
-      try {
-        for (const adminEmail of form.emailNotifications.adminEmails) {
-          await sendAnnouncementEmail(
-            adminEmail,
-            `New Application Received: ${form.name}`,
-            `A new application has been submitted for ${form.name} by ${applicationData.studentInfo.fullName} (${applicationData.studentInfo.email}).`
+        const emailService = require('../../services/emailService');
+        const applicantEmail = application.studentInfo.email;
+        
+        if (applicantEmail) {
+          await emailService.sendAutoReply(
+            applicantEmail,
+            form.emailNotifications.autoReplyTemplate,
+            application
           );
         }
       } catch (emailError) {
-        console.error('Admin notification email failed:', emailError);
+        console.error('Failed to send auto-reply email:', emailError);
+        // Don't fail the submission if email fails
       }
     }
 
-    return successResponse(res, 'Application submitted successfully', {
-      applicationId: application._id,
-      message: 'Thank you for your application. We will review it and get back to you soon.'
-    }, 201);
+    return successResponse(res, 
+      { 
+        applicationId: application._id,
+        message: 'Application submitted successfully' 
+      }, 
+      'Application submitted successfully', 
+      201
+    );
 
   } catch (error) {
     console.error('Submit application error:', error);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.keys(error.errors).map(key => ({
+        path: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: errors
+      });
+    }
+    
     return errorResponse(res, 'Failed to submit application', 500);
   }
 };

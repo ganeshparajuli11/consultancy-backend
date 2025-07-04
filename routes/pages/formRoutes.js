@@ -138,56 +138,24 @@ const updateFormSchema = z.object({
   }).optional()
 });
 
-// Application submission schema
+// Application submission schema - Flexible for dynamic forms
 const submitApplicationSchema = z.object({
   studentInfo: z.object({
-    fullName: z.string().min(2).max(100),
-    email: z.string().email(),
-    phoneNumber: z.string().min(10).max(20),
+    fullName: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+    phoneNumber: z.string().min(1).optional(),
     dateOfBirth: z.string().optional(),
-    address: z.object({
-      street: z.string().optional(),
-      city: z.string().optional(),
-      state: z.string().optional(),
-      country: z.string().optional(),
-      zipCode: z.string().optional()
-    }).optional(),
-    emergencyContact: z.object({
-      name: z.string().optional(),
-      relationship: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().email().optional()
-    }).optional()
-  }),
-  academicInfo: z.object({
-    education: z.array(z.object({
-      level: z.enum(['high-school', 'bachelor', 'master', 'phd', 'diploma', 'certificate']).optional(),
-      institution: z.string().optional(),
-      fieldOfStudy: z.string().optional(),
-      graduationYear: z.number().optional(),
-      grade: z.string().optional()
-    })).optional(),
-    englishProficiency: z.object({
-      level: z.enum(['beginner', 'elementary', 'intermediate', 'upper-intermediate', 'advanced', 'native']).optional(),
-      testScores: z.array(z.object({
-        testName: z.enum(['IELTS', 'TOEFL', 'PTE', 'DUOLINGO', 'OTHER']).optional(),
-        score: z.string().optional(),
-        testDate: z.string().optional()
-      })).optional()
-    }).optional()
+    address: z.record(z.any()).optional()
   }).optional(),
-  coursePreferences: z.object({
-    interestedCourses: z.array(z.string()).optional(),
-    preferredSchedule: z.enum(['morning', 'afternoon', 'evening', 'weekend', 'flexible']).optional(),
-    learningGoals: z.string().optional(),
-    previousLanguageLearning: z.string().optional()
-  }).optional(),
-  documents: z.array(z.object({
-    name: z.string(),
-    type: z.enum(['transcript', 'certificate', 'id-document', 'photo', 'test-score', 'other']),
-    url: z.string()
-  })).optional(),
+  academicInfo: z.record(z.any()).optional(),
+  coursePreferences: z.record(z.any()).optional(),
+  documents: z.array(z.any()).optional(),
   formData: z.record(z.any()).optional()
+}).refine((data) => {
+  // At minimum, we need some form data
+  return data.formData || data.studentInfo;
+}, {
+  message: "Form data is required"
 });
 
 // Status update schema
@@ -492,7 +460,7 @@ router.get('/public/:slug', async (req, res) => {
       slug: slug, 
       isActive: true 
     }).populate('language', 'name code flag')
-      .select('name description fields category language settings.submissionDeadline');
+      .select('name description fields category language settings.submissionDeadline isActive');
     
     if (!form) {
       return res.status(404).json({
