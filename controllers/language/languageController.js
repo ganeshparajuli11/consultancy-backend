@@ -110,13 +110,18 @@ async function getAllLanguages(req, res) {
     const langs = await Language.find(filter).sort('name');
     return res.json({ success: true, data: langs });
   } catch (err) {
-    console.error('Fetch languages error:', err);
+    console.error('❌ Fetch languages error:', err); // log actual error
     return res.status(500).json({
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Unable to fetch languages.' }
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Unable to fetch languages.',
+        reason: err.message // Add this line temporarily
+      }
     });
   }
 }
+
 
 
 // Fetch a single language by ID
