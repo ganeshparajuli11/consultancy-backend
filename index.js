@@ -34,7 +34,7 @@ const pricingPlan= require('./routes/billsAndPayment/pricingPlanRoute');
 const pagesRoutes = require('./routes/pages/pagesRoute');
 const formRoutes = require('./routes/pages/formRoutes');
 const uploadRoutes = require('./routes/upload/uploadRoute');
-
+const contentRoutes = require('./routes/content/contentRoutes');
 // Initialize app
 const app = express();
 
@@ -66,7 +66,8 @@ app.use(cors({
     'http://localhost:3000', // Alternative ports
     'http://localhost:3001',
     'https://admin.langzy.co',
-    'https://langzy.co'
+    'https://langzy.co',
+    'https://api.langzy.co'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -103,7 +104,6 @@ app.use('/auth', loginRouter);
 app.use('/api', landingRoutes);
 app.use('/api/call', videoCallRouter);
 app.use('/api/section', sectionRoutes);
-app.use('/api/jitsi', jitsiRoutes);
 app.use('/auth', employeAuth);
 app.use('/api/classes', classRoutes);
 app.use('/api/profile', userProfileRoutes);
@@ -112,7 +112,7 @@ app.use('/api/pricing', pricingPlan);
 app.use('/api/pages', pagesRoutes);
 app.use('/api/forms', formRoutes);
 app.use('/api/upload', uploadRoutes);
-
+app.use('/api', contentRoutes);
 // Swagger documentation
 const swaggerOptions = {
   swaggerDefinition: {
